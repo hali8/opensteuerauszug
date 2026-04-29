@@ -541,8 +541,14 @@ def process(
                 kursliste_manager_verify.load_directory(effective_kursliste_dir)
                 
                 # Verify that Kursliste data exists for the required tax year
-                assert parsed_period_to is not None
-                required_tax_year_verify = statement.taxPeriod if statement.taxPeriod else parsed_period_to.year
+                if statement.taxPeriod:
+                    required_tax_year_verify = statement.taxPeriod
+                elif parsed_period_to is not None:
+                    required_tax_year_verify = parsed_period_to.year
+                else:
+                    raise typer.BadParameter(
+                        "Verify phase requires either statement.taxPeriod to be set or a --period-to argument."
+                    )
                 kursliste_manager_verify.ensure_year_available(required_tax_year_verify, effective_kursliste_dir)
                 
                 exchange_rate_provider_verify = KurslisteExchangeRateProvider(kursliste_manager_verify)
@@ -726,8 +732,9 @@ def process(
                         except Exception as e:
                             print(f"Warning: Failed to delete temporary file {rendered_path}: {e}")
 
-        assert statement is not None
         if final_xml_path:
+            if statement is None:
+                raise ValueError("TaxStatement model not loaded. Cannot write final XML output.")
             try:
                 statement.to_xml_file(str(final_xml_path))
                 print(f"Final XML written to {final_xml_path}")
