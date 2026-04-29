@@ -1,6 +1,6 @@
 import sqlite3
 import json
-from typing import Optional, Dict as PyDict, List, Type
+from typing import Optional, Dict as PyDict, List, Type, cast
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -71,7 +71,7 @@ class KurslisteDBReader:
             db_path: Path to the SQLite database file.
         """
         self.db_path = db_path
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn: Optional[sqlite3.Connection] = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row  # Access columns by name
         # Detect blob format from metadata (xml or json/legacy)
         self._blob_format = self._read_blob_format()
@@ -79,6 +79,8 @@ class KurslisteDBReader:
     def _read_blob_format(self) -> str:
         """Read the blob_format metadata from the database. Returns 'json' for legacy databases."""
         try:
+            if self.conn is None:
+                return "json"
             cursor = self.conn.cursor()
             cursor.execute("SELECT value FROM metadata WHERE key = 'blob_format'")
             row = cursor.fetchone()
@@ -128,10 +130,12 @@ class KurslisteDBReader:
         if not model_class:
             print(f"Warning: Unknown security type identifier '{type_identifier}'. Cannot deserialize.")
             return None
-        return self._deserialize_object(blob_data, model_class, f"Security (Type: {type_identifier})")
+        return cast(Optional[Security], self._deserialize_object(blob_data, model_class, f"Security (Type: {type_identifier})"))
 
     def _execute_query_fetchone(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
         """Helper to execute a query and fetch one result."""
+        if self.conn is None:
+            return None
         try:
             cursor = self.conn.cursor()
             cursor.execute(query, params)
@@ -142,6 +146,8 @@ class KurslisteDBReader:
 
     def _execute_query_fetchall(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
         """Helper to execute a query and fetch all results."""
+        if self.conn is None:
+            return []
         try:
             cursor = self.conn.cursor()
             cursor.execute(query, params)
