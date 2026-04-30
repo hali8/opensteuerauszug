@@ -121,7 +121,9 @@ def process(
     # Suppress pypdf warnings to avoid cluttering output with benign warnings
     # about rotated text and other PDF layout issues
     logging.getLogger('pypdf').setLevel(logging.ERROR)
-    cast(io.TextIOWrapper, sys.stdout).reconfigure(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
+    reconfigure_stdout = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure_stdout):
+        reconfigure_stdout(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
     
     phases_specified_by_user = run_phases_input is not None or ctx.info_name in _COMMAND_DEFAULT_PHASES
     if run_phases_input is not None:
