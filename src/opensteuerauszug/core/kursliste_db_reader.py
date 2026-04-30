@@ -80,7 +80,7 @@ class KurslisteDBReader:
         """Read the blob_format metadata from the database. Returns 'json' for legacy databases."""
         try:
             if self.conn is None:
-                return "json"
+                raise RuntimeError("KurslisteDBReader connection is closed.")
             cursor = self.conn.cursor()
             cursor.execute("SELECT value FROM metadata WHERE key = 'blob_format'")
             row = cursor.fetchone()
