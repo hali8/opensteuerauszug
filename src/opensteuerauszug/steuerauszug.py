@@ -1,9 +1,10 @@
+import io
 import logging
 import typer
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, cast
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
@@ -120,13 +121,15 @@ def process(
     # Suppress pypdf warnings to avoid cluttering output with benign warnings
     # about rotated text and other PDF layout issues
     logging.getLogger('pypdf').setLevel(logging.ERROR)
-    sys.stdout.reconfigure(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
+    reconfigure_stdout = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure_stdout):
+        reconfigure_stdout(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
     
     phases_specified_by_user = run_phases_input is not None or ctx.info_name in _COMMAND_DEFAULT_PHASES
     if run_phases_input is not None:
         run_phases = run_phases_input
     else:
-        run_phases = _COMMAND_DEFAULT_PHASES.get(ctx.info_name, default_phases[:])
+        run_phases = _COMMAND_DEFAULT_PHASES.get(ctx.info_name or "", default_phases[:])
         if not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
             run_phases.remove(Phase.RECONCILE_PAYMENTS)
 
@@ -245,11 +248,11 @@ def process(
 
             for acc_settings in concrete_accounts_list:
                 if acc_settings.kind == "fidelity":
-                    all_fidelity_account_settings_models.append(acc_settings.settings)
+                    all_fidelity_account_settings_models.append(cast(FidelityAccountSettings, acc_settings.settings))
                 elif acc_settings.kind == "schwab":
-                    all_schwab_account_settings_models.append(acc_settings.settings)
+                    all_schwab_account_settings_models.append(cast(SchwabAccountSettings, acc_settings.settings))
                 elif acc_settings.kind == "ibkr":
-                    all_ibkr_account_settings_models.append(acc_settings.settings)
+                    all_ibkr_account_settings_models.append(cast(IbkrAccountSettings, acc_settings.settings))
                 else:
                     print(f"Warning: Received unhandled account configuration kind '{acc_settings.kind}' for broker '{target_broker_kind_for_config_loading}'. Skipping.")
             if target_broker_kind_for_config_loading == "fidelity" and not all_fidelity_account_settings_models and concrete_accounts_list:
@@ -540,7 +543,14 @@ def process(
                 kursliste_manager_verify.load_directory(effective_kursliste_dir)
                 
                 # Verify that Kursliste data exists for the required tax year
-                required_tax_year_verify = statement.taxPeriod if statement.taxPeriod else parsed_period_to.year
+                if statement.taxPeriod:
+                    required_tax_year_verify = statement.taxPeriod
+                elif parsed_period_to is not None:
+                    required_tax_year_verify = parsed_period_to.year
+                else:
+                    raise typer.BadParameter(
+                        "Verify phase requires either statement.taxPeriod to be set or a --period-to argument."
+                    )
                 kursliste_manager_verify.ensure_year_available(required_tax_year_verify, effective_kursliste_dir)
                 
                 exchange_rate_provider_verify = KurslisteExchangeRateProvider(kursliste_manager_verify)
@@ -725,6 +735,8 @@ def process(
                             print(f"Warning: Failed to delete temporary file {rendered_path}: {e}")
 
         if final_xml_path:
+            if statement is None:
+                raise ValueError("TaxStatement model not loaded. Cannot write final XML output.")
             try:
                 statement.to_xml_file(str(final_xml_path))
                 print(f"Final XML written to {final_xml_path}")
