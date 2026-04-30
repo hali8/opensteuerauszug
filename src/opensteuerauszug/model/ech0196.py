@@ -1243,7 +1243,7 @@ class Security(BaseXmlModel):
     securityName: str = Field(..., max_length=60, json_schema_extra={'is_attribute': True})
     
     # Optional attributes
-    valorNumber: Optional[ValorNumber] = Field(default=None, json_schema_extra={'is_attribute': True})
+    valorNumber: Optional[ValorNumber] = Field(default=None, ge=ValorNumber(100), le=ValorNumber(999999999999), json_schema_extra={'is_attribute': True})
     isin: Optional[ISINType] = Field(default=None, pattern=r"[A-Z]{2}[A-Z0-9]{9}[0-9]{1}", json_schema_extra={'is_attribute': True})
     city: Optional[str] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
     nominalValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
