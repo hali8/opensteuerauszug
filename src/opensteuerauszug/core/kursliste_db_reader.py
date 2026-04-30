@@ -1,15 +1,19 @@
 import sqlite3
 import json
-from typing import Optional, Dict as PyDict, List, Type, cast
+from typing import Optional, Dict as PyDict, List, Type, TypeVar
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from pydantic import ValidationError
+from pydantic_xml import BaseXmlModel as PydanticXmlModel
 
 from opensteuerauszug.model.kursliste import (
     Security, Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
     SecurityTypeESTV, Sign, Da1Rate, Da1RateType, SecurityGroupESTV
 )
+
+_T = TypeVar('_T', bound=PydanticXmlModel)
+
 
 class KurslisteDBReader:
     """
@@ -90,7 +94,7 @@ class KurslisteDBReader:
             pass
         return "json"  # Legacy databases used JSON blobs
 
-    def _deserialize_object(self, blob_data: bytes, model_class: Type, object_type_name: str) -> Optional[object]:
+    def _deserialize_object(self, blob_data: bytes, model_class: Type[_T], object_type_name: str) -> Optional[_T]:
         """
         Generic deserializer for objects stored as BLOBs.
         Handles both XML format (v3+) and legacy JSON format.
@@ -130,7 +134,7 @@ class KurslisteDBReader:
         if not model_class:
             print(f"Warning: Unknown security type identifier '{type_identifier}'. Cannot deserialize.")
             return None
-        return cast(Optional[Security], self._deserialize_object(blob_data, model_class, f"Security (Type: {type_identifier})"))
+        return self._deserialize_object(blob_data, model_class, f"Security (Type: {type_identifier})")
 
     def _execute_query_fetchone(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
         """Helper to execute a query and fetch one result."""
@@ -354,8 +358,7 @@ class KurslisteDBReader:
         """
         row = self._execute_query_fetchone(query, (sign_value, tax_year))
         if row and row["sign_object_blob"]:
-            # Type casting for clarity, _deserialize_object returns Optional[object]
-            return self._deserialize_object(row["sign_object_blob"], Sign, "Sign") # type: ignore
+            return self._deserialize_object(row["sign_object_blob"], Sign, "Sign")
         return None
 
     def get_da1_rate(self, country: str, security_group: SecurityGroupESTV, tax_year: int,
@@ -386,7 +389,7 @@ class KurslisteDBReader:
             if row["da1_rate_object_blob"]:
                 deserialized_obj = self._deserialize_object(row["da1_rate_object_blob"], Da1Rate, "Da1Rate")
                 if deserialized_obj:
-                    candidates.append(deserialized_obj) # type: ignore
+                    candidates.append(deserialized_obj)
 
         if not candidates:
             return None
