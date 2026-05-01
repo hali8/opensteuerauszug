@@ -20,6 +20,9 @@ from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
+from barcode.writer import ImageWriter
+from barcode import Code128
+assert ImageWriter is not None  # Pillow is a declared dependency
 import logging
 
 from opensteuerauszug.model.ech0196 import TaxStatement, Security, CountryIdISO2Type
@@ -1156,29 +1159,8 @@ def create_critical_warnings_hint(warnings: list, styles) -> list:
 
 # --- Barcode Generation ---
 def get_barcode_image(data):
-    """Generate a barcode image from the given data using Code128.
-    
-    Args:
-        data: The data to encode in the barcode
-        
-    Returns:
-        A PIL Image object containing the barcode
-    """
-    try:
-        from barcode.writer import ImageWriter
-        from barcode import Code128
-        assert ImageWriter is not None, "Pillow must be installed for barcode image rendering"
-        code = Code128(str(data), writer=ImageWriter())
-        pil_img = code.render(writer_options={'write_text': False, 'module_height': 10.0})
-        return pil_img
-    except ImportError:
-        # Fallback to a placeholder if barcode library isn't available
-        img = PILImage.new('RGB', (800, 150), color='grey')
-        return img
-    except Exception as e:
-        # Return a red placeholder in case of errors
-        img = PILImage.new('RGB', (800, 150), color='red')
-        return img
+    code = Code128(str(data), writer=ImageWriter())
+    return code.render(writer_options={'write_text': False, 'module_height': 10.0})
 
 def render_statement_info(tax_statement: TaxStatement, story: list, client_info_style: ParagraphStyle) -> None:
     """Add client, institution, period, and creation date information to the PDF story.
