@@ -1668,7 +1668,7 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
             if security.taxValue and security.taxValue.value:
                 self.totalTaxValue += security.taxValue.value
 
-    previous_country: Optional[str] = None
+    previous_country: Optional[CountryIdISO2Type] = None
     def render_country_total(last: bool = False):
         if running_totals is None:
             return
