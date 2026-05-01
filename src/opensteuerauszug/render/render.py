@@ -1167,7 +1167,8 @@ def get_barcode_image(data):
     try:
         from barcode.writer import ImageWriter
         from barcode import Code128
-        code = Code128(str(data), writer=ImageWriter())  # type: ignore[operator]
+        assert ImageWriter is not None, "Pillow must be installed for barcode image rendering"
+        code = Code128(str(data), writer=ImageWriter())
         pil_img = code.render(writer_options={'write_text': False, 'module_height': 10.0})
         return pil_img
     except ImportError:
