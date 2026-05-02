@@ -3,7 +3,7 @@ from math import floor
 import sys
 import hashlib
 from pathlib import Path
-from typing import Dict, Optional, Union, List
+from typing import Any, Dict, Optional, Union, List, cast
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
@@ -20,6 +20,9 @@ from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
+from barcode.writer import ImageWriter
+from barcode import Code128
+assert ImageWriter is not None  # Pillow is a declared dependency
 import logging
 
 from opensteuerauszug.model.ech0196 import TaxStatement, Security, CountryIdISO2Type
@@ -88,7 +91,7 @@ class BarcodeDocTemplate(BaseDocTemplate):
             text = flowable.getPlainText()
             style = flowable.style.name
             if style == 'SectionTitle':
-                self.canv.add_bookmark(text)
+                cast(Any, self.canv).add_bookmark(text)
 
 # --- Helper Function for Currency Formatting ---
 def format_currency_rounded(value: Decimal, default='0'):
@@ -159,7 +162,7 @@ def find_minimal_decimals(value: Optional[Decimal]):
     if isinstance(exponent, int): return max(0, -exponent)
     return 4
 
-def extract_client_info(tax_statement: TaxStatement) -> Dict[str, str]:
+def extract_client_info(tax_statement: TaxStatement) -> Dict[str, Any]:
     """Extract client information from tax statement for header display.
     
     Args:
@@ -168,8 +171,8 @@ def extract_client_info(tax_statement: TaxStatement) -> Dict[str, str]:
     Returns:
         Dictionary with formatted client information
     """
-    client_info = {}
-    
+    client_info: Dict[str, Any] = {}
+
     # Handle multiple clients (joint accounts)
     if tax_statement.client and len(tax_statement.client) > 0:
         client_names = []
@@ -442,7 +445,7 @@ class NumberedCanvas(canvas.Canvas):
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
         self._bookmarks = []
-        self._startPage()
+        self._startPage()  # type: ignore[attr-defined]
 
     def save(self):
         num_pages = len(self._saved_page_states)
@@ -466,7 +469,7 @@ class NumberedCanvas(canvas.Canvas):
         text = f"{t('page').format(page=page_num, total=page_count)}"
         self.setFont(FONT_REGULAR, 8)
         footer_y = self.bottom_margin - 10 * mm
-        page_width = self._pagesize[0]
+        page_width = self._pagesize[0]  # type: ignore[attr-defined]
         self.drawRightString(page_width - self.right_margin, footer_y, text)
 
     def add_bookmark(self, title):
@@ -608,7 +611,7 @@ def create_summary_table(data, styles, usable_width):
         if show_liability_payments:
             header_row.append(Paragraph(t('liabilities_interest_summary_header').format(period=summary_data.get("tax_period", "")), header_style))  # Col 6
         else:
-            header_row.append('')
+            header_row.append(Paragraph('', val_left))
 
         # Fill remaining columns (Cols 7-10, then Col 11 with description)
         header_row.extend([Paragraph('', val_left), Paragraph('', val_left), Paragraph('', val_left), Paragraph('', val_left),
@@ -1019,7 +1022,7 @@ def create_dual_info_boxes(styles, usable_width, minimal: bool = False):
     return table
 
 
-def create_single_info_page(markdown_text, styles, section=None):
+def create_single_info_page(markdown_text: str, styles: Any, section: Optional[str] = None) -> List[Any]:
     """Create simple text content for a dedicated information page."""
     return markdown_to_platypus(markdown_text, section=section)
 
@@ -1156,28 +1159,8 @@ def create_critical_warnings_hint(warnings: list, styles) -> list:
 
 # --- Barcode Generation ---
 def get_barcode_image(data):
-    """Generate a barcode image from the given data using Code128.
-    
-    Args:
-        data: The data to encode in the barcode
-        
-    Returns:
-        A PIL Image object containing the barcode
-    """
-    try:
-        from barcode.writer import ImageWriter
-        from barcode import Code128
-        code = Code128(str(data), writer=ImageWriter())
-        pil_img = code.render(writer_options={'write_text': False, 'module_height': 10.0})
-        return pil_img
-    except ImportError:
-        # Fallback to a placeholder if barcode library isn't available
-        img = PILImage.new('RGB', (800, 150), color='grey')
-        return img
-    except Exception as e:
-        # Return a red placeholder in case of errors
-        img = PILImage.new('RGB', (800, 150), color='red')
-        return img
+    code = Code128(str(data), writer=ImageWriter())
+    return code.render(writer_options={'write_text': False, 'module_height': 10.0})
 
 def render_statement_info(tax_statement: TaxStatement, story: list, client_info_style: ParagraphStyle) -> None:
     """Add client, institution, period, and creation date information to the PDF story.
@@ -1274,7 +1257,7 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     NUM_COLUMNS = 13
     NUM_ROWS = 35
     # Reserve space for file name by using same word compaction as py417gen does.
-    file_name_compacted = list(compact_text(bytes(file_name, 'utf-8')))
+    file_name_compacted = list(compact_text(bytes(file_name or '', 'utf-8')))
     # Check if we are using a fixed version of py417gen that does properly compact the file name.
     # See https://github.com/vroonhof/opensteuerauszug/issues/240
     if encode_optional_field(MACRO_FILE_NAME, file_name)[2:] != file_name_compacted:
@@ -1668,7 +1651,7 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
             if security.taxValue and security.taxValue.value:
                 self.totalTaxValue += security.taxValue.value
 
-    previous_country: CountryIdISO2Type = None
+    previous_country: Optional[CountryIdISO2Type] = None
     def render_country_total(last: bool = False):
         if running_totals is None:
             return
@@ -1724,7 +1707,7 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
 
         securities_in_depot.sort(key=securities_in_depot_sort_key)
         previous_country = None
-        running_totals: RunningTotals = None
+        running_totals: Optional[RunningTotals] = None
         for security in securities_in_depot:
             # For DA1, add country header row when country changes
             if security_type == "DA1":
@@ -1900,13 +1883,13 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
         Paragraph('', val_right),
         Paragraph('', val_left),
         Paragraph('', val_right),
-        Paragraph(format_currency_2dp(total_tax_value), bold_right),
+        Paragraph(format_currency_2dp(total_tax_value or Decimal('0')), bold_right),
         Paragraph('', val_left),
-        Paragraph(format_currency_2dp(total_gross_revenueA), bold_right) if total_gross_revenueA is not None else '',
+        Paragraph(format_currency_2dp(total_gross_revenueA), bold_right) if total_gross_revenueA is not None else Paragraph('', val_left),
         Paragraph('', val_left),
-        Paragraph(format_currency_2dp(total_gross_revenueB), bold_right) if total_gross_revenueB is not None else '',
-        Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalNonRecoverableTax), bold_right),
-        Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA), bold_right),
+        Paragraph(format_currency_2dp(total_gross_revenueB), bold_right) if total_gross_revenueB is not None else Paragraph('', val_left),
+        Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalNonRecoverableTax or Decimal('0')), bold_right),
+        Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA or Decimal('0')), bold_right),
     ])
     intermediate_total_rows.append(current_row)
     current_row += 1
@@ -1949,7 +1932,7 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
         table_style.append(('BOTTOMPADDING', (0, idx), (-1, idx), 1)),
     # Final totals
     table_style.append(('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d3d3d3')))
-    table_style.append(('SPAN', (1, -1), (6, -1)))
+    table_style.append(('SPAN', (1, -1), (6, -1)))  # type: ignore[arg-type]
     securities_table = Table([table_header] + table_data, colWidths=col_widths, repeatRows=1, splitByRow=1)
     securities_table.setStyle(TableStyle(table_style))
     return securities_table
@@ -1972,7 +1955,7 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
     for row in report.rows:
         grouped.setdefault(row.country or '??', []).append(row)
 
-    flowables = []
+    flowables: List[Any] = []
     for country in sorted(grouped.keys()):
         rows = sorted(grouped[country], key=lambda r: (r.security, r.payment_date))
         flowables.append(Paragraph(t('reconciliation_payments').format(country=country), styles['h2']))
@@ -2152,7 +2135,7 @@ def render_tax_statement(
 
 
     
-    story = []
+    story: List[Any] = []
 
     # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['HeaderTitle'],  spaceAfter=6*mm)

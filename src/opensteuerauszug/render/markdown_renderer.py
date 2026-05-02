@@ -1,3 +1,4 @@
+from typing import Any, List, Optional
 from markdown import Markdown
 from markdown.treeprocessors import Treeprocessor
 from markdown.extensions import Extension
@@ -118,7 +119,7 @@ class PlatypusTreeprocessor(Treeprocessor):
                     items.append(ListItem(Paragraph(text, self.styles['Normal'])))
                 
                 list_flowable = ListFlowable(
-                    items,
+                    items,  # type: ignore[arg-type]
                     bulletType='1' if element.tag == 'ol' else 'bullet',
                     start='1' if element.tag == 'ol' else None,
                 )
@@ -139,7 +140,7 @@ class PlatypusExtension(Extension):
         md.treeprocessors.register(PlatypusTreeprocessor(md, self.styles), 'platypus', 5)
 
 
-def markdown_to_platypus(markdown_text: str, section: str = None, styles=None):
+def markdown_to_platypus(markdown_text: str, section: Optional[str] = None, styles=None) -> List[Any]:
     """
     Converts a Markdown string to a list of ReportLab Platypus Flowables.
     """
@@ -149,5 +150,5 @@ def markdown_to_platypus(markdown_text: str, section: str = None, styles=None):
     md = Markdown(extensions=['attr_list', platypus_ext], output_format="html")
     md.convert(markdown_text)
     
-    processor = md.treeprocessors['platypus']
+    processor: Any = md.treeprocessors['platypus']
     return processor.flowables
