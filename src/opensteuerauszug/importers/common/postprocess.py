@@ -52,6 +52,7 @@ from opensteuerauszug.model.ech0196 import (
     ISINType,
     ListOfBankAccounts,
     ListOfSecurities,
+    QuotationType,
     Security,
     SecurityCategory,
     SecurityStock,
@@ -106,10 +107,10 @@ def _pick_currency_and_quotation(
     stocks: Sequence[SecurityStock],
     payments: Sequence,
     identifier: str,
-) -> Tuple[str, str]:
+) -> Tuple[str, QuotationType]:
     """Replicates the IBKR/Fidelity currency + quotationType selection."""
     primary_currency: Optional[str] = None
-    primary_quotation_type: str = "PIECE"
+    primary_quotation_type: QuotationType = "PIECE"
     if stocks:
         balance_stocks = [s for s in stocks if not s.mutation and s.balanceCurrency]
         source = balance_stocks[0] if balance_stocks else stocks[0]
@@ -182,7 +183,7 @@ def _append_boundary_stock_if_missing(
     reference_date: date,
     quantity: Decimal,
     currency: str,
-    quotation_type: str,
+    quotation_type: QuotationType,
     name: Optional[str],
     skip_when_zero: bool,
 ) -> None:
