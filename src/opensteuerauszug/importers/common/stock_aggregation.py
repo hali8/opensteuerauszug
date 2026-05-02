@@ -43,7 +43,11 @@ def aggregate_mutations(stocks: List[SecurityStock]) -> List[SecurityStock]:
                             + stock.quantity * stock.unitPrice
                         ) / total_quantity
                     else:
-                        pending.unitPrice = pending.unitPrice or stock.unitPrice
+                        pending.unitPrice = (
+                            pending.unitPrice
+                            if pending.unitPrice is not None
+                            else stock.unitPrice
+                        )
                 pending.quantity = total_quantity
             else:
                 if pending:
